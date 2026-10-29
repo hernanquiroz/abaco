@@ -1,11 +1,10 @@
 """
-01_app.py — Punto de entrada principal de la aplicación Streamlit
-Tablero Kanban interactivo con drag-and-drop entre columnas ("mástiles").
+01_app.py — Punto de entrada principal.
+Tablero Kanban interactivo con drag-and-drop entre columnas.
 """
-
 from __future__ import annotations
-
 import uuid
+import json
 import streamlit as st
 
 from kanban_component import kanban_board
@@ -65,16 +64,35 @@ with toolbar_cols[3]:
             st.error(f"No se pudo importar el archivo: {exc}")
 
 
-new_state = kanban_board(
+# ---------------------------------------------------------------------------
+# Render del tablero
+# ---------------------------------------------------------------------------
+# El componente devuelve el estado inicial (no hay retorno desde JS con
+# components.html). Para capturar movimientos del usuario, usamos un
+# callback vía st.query_params que el JS actualiza.
+new_board = kanban_board(
     columns=st.session_state.board,
     key=f"kanban_{st.session_state.component_nonce}",
 )
 
-if new_state is not None and new_state != st.session_state.board:
-    st.session_state.board = new_state
-    save_state(new_state)
+# Si el JS escribió un nuevo estado en query_params, lo recogemos.
+try:
+    qp = st.query_params
+    if "kanban_state" in qp and qp["kanban_state"]:
+        decoded = json.loads(qp["kanban_state"])
+        if decoded != st.session_state.board:
+            st.session_state.board = decoded
+            save_state(decoded)
+            # Limpia el query param para no re-procesar.
+            del st.query_params["kanban_state"]
+            st.rerun()
+except Exception:
+    pass
 
 
+# ---------------------------------------------------------------------------
+# Panel lateral
+# ---------------------------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Gestión del tablero")
 
@@ -138,13 +156,10 @@ with st.sidebar:
 
     st.divider()
     st.markdown(
-        "**💡 Tip:** Arrastra cualquier ficha desde una columna hacia otra. "
-        "El cambio se guarda automáticamente en `kanban_data.json`."
+        "**💡 Tip:** Arrastra cualquier ficha entre columnas. "
+        "Tras soltarla, la posición se guarda automáticamente."
     )
 
 
 st.divider()
-st.caption(
-    "Hecho con Streamlit + SortableJS · Despliegue en Streamlit Cloud · "
-    "Estructura modular lista para GitHub."
-)
+st.caption("Hecho con Streamlit + SortableJS · Despliegue en Streamlit Cloud.")
